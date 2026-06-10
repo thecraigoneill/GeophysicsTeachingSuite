@@ -1,0 +1,125 @@
+<!-- Updated index.html with RHS layout -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polygon Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Gravity-magnetic simulator</h1>
+
+        <div class="main-section" style="display: flex; gap: 25px;">
+
+            <!-- Left side: Canvases -->
+            <div class="canvases" style="flex: 3;">
+		<div class="mode-toggle" style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
+    			<button id="magButton" onclick="setMode('mag')" style="padding: 10px 20px; font-size: 1.1em; opacity: 1.0; transition: opacity 0.3s;"> Magnetics Plot </button>
+    			<button id="gravButton" onclick="setMode('grav')" style="padding: 10px 20px; font-size: 1.1em; opacity: 0.4; transition: opacity 0.3s;"> Gravity Plot
+    			</button>
+			<label>
+    				<input type="checkbox" id="showLoaded" checked onchange="redrawPlot()">
+    					Show Loaded Data
+			</label>
+			<label>
+    				<input type="checkbox" id="showModelled" checked onchange="redrawPlot()">
+    					Show Modelled Response
+			</label>
+		</div>
+                <!-- Plot Canvas (top) -->
+                <div class="plot-container" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                    <canvas id="plotCanvas" width="700" height="200" style="border: 2px solid #ddd; background: #fff;"></canvas>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button onclick="loadMagCSV()">Load Mag CSV</button>
+                        <button onclick="loadGravCSV()">Load Grav CSV</button>
+                        <button onclick="saveProfile()">Save Profile</button>
+                    </div>
+                </div>
+
+                <!-- Polygon Canvas (bottom) -->
+                <canvas id="canvas" width="700" height="500" style="border: 2px solid #ddd; background: #fff;"></canvas>
+            </div>
+
+            <!-- Right side: Controls and boxes -->
+            <div class="controls-rhs" style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+                <!-- Bounds inputs -->
+                <div class="bounds-inputs" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <label>X min (m):</label><br>
+                        <input type="number" id="xmin" step="any" value="0" style="width: 80px;">
+                    </div>
+                    <div>
+                        <label>X max (m):</label><br>
+                        <input type="number" id="xmax" step="any" value="10000" style="width: 80px;">
+                    </div>
+                </div>
+                <div class="bounds-inputs" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <label>Y min (m):</label><br>
+                        <input type="number" id="ymin" step="any" value="0" style="width: 80px;">
+                    </div>
+                    <div>
+                        <label>Y max (m):</label><br>
+                        <input type="number" id="ymax" step="any" value="1000" style="width: 80px;">
+                    </div>
+                </div>
+                <button onclick="applyBounds()">Apply Bounds</button>
+
+                <!-- Field params -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div>
+                        <label>Inclination (°):</label><br>
+                        <input type="number" id="inclination" value="60" style="width: 80px;">
+                    </div>
+                    <div>
+                        <label>Declination (°):</label><br>
+                        <input type="number" id="declination" value="0" style="width: 80px;">
+                    </div>
+                    <div>
+                        <label>Orientation (°):</label><br>
+                        <input type="number" id="orientation" value="0" style="width: 80px;">
+                    </div>
+		    <div>
+    			<label>Background Density (kg/m³):</label><br>
+    			<input type="number" id="backgroundDensity" value="0" step="10" style="width: 100px;">
+		</div>
+                </div>
+
+                <button onclick="calculateResponse()">Calculate Response</button>
+
+                <!-- Bottom buttons -->
+                <button onclick="addNewPolygon()">+ New Polygon</button>
+                <button onclick="clearCurrentPolygon()">Clear Current</button>
+                <button onclick="loadPolygon()">Load CSV</button>
+                <button onclick="savePolygon()">Save CSV</button>
+            </div>
+        </div>
+
+        <!-- Polygon list and points below -->
+        <div id="polygons-list" style="margin-top: 20px;"></div>
+	<div style="margin-top: 15px;">
+    		<label>Susceptibility (SI) for active polygon:</label><br>
+    		<input type="number" id="susceptibility" value="0.01" step="0.001" min="0" style="width: 100px;">
+	</div>
+	<div style="margin-top: 10px;">
+    		<label>Density (kg/m³) for active polygon:</label><br>
+    		<input type="number" id="density" value="1000" step="10" style="width: 100px;">
+	</div>
+        <div id="points-list" style="margin-top: 20px;">
+            <h3>Current Points</h3>
+            <ul id="points-ul"></ul>
+        </div>
+        <div id="image-container" style="display: none; margin-top: 20px;">
+            <h3>Preview</h3>
+            <img id="polygon-image" src="" alt="Polygon Preview">
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

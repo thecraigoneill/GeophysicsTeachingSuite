@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seismic First-Break Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+<div class="container">
+
+    <h1>⚡ Seismic First-Break Viewer</h1>
+    <div id="status-bar">No file loaded — open a .dat file to begin.</div>
+
+    <!-- ══ Tab bar ══ -->
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tab-btn-viewer"    onclick="switchTab('viewer')">Viewer</button>
+        <button class="tab-btn"        id="tab-btn-editdata"  onclick="switchTab('editdata')">Edit Data</button>
+        <button class="tab-btn"        id="tab-btn-inversion" onclick="switchTab('inversion')">Inversion Data</button>
+    </div>
+
+    <!-- ══════ TAB 1: VIEWER (original content) ══════ -->
+    <div id="tab-viewer" class="tab-panel tab-active">
+
+    <div class="main-layout" style="margin-top:14px;">
+
+        <!-- ══ Y-axis centre slider (vertical, left of plot) ══ -->
+        <div class="ycentre-col">
+            <div class="vslider-label">Y centre</div>
+            <div class="vslider-wrap">
+                <span class="vslider-tick" id="yc-max-label">—</span>
+                <input type="range" id="y-centre" class="vslider"
+                       min="0" max="100" step="0.5" value="50"
+                       oninput="onYCentreSlider(this.value)" disabled>
+                <span class="vslider-tick" id="yc-min-label">—</span>
+            </div>
+            <div class="vslider-val" id="yc-val">—</div>
+        </div>
+
+        <!-- ══ Plot column ══ -->
+        <div class="plot-col">
+
+            <!-- Plot container -->
+            <div id="plot-container" onclick="handlePlotClick(event)">
+                <div id="plot-placeholder">
+                    📂 Load a .dat file to begin<br>
+                    <span style="font-size:0.85em;color:#374151;">Use the controls on the right</span>
+                </div>
+                <img id="plot-img" src="" alt="" style="display:none; max-width:100%; display:block;">
+                <div class="spinner" id="plot-spinner" style="position:absolute;"></div>
+            </div>
+
+            <!-- Time axis slider (below plot) -->
+            <div class="hslider-row">
+                <span class="hslider-label">T window</span>
+                <span style="font-size:0.72rem;color:#6b7280;">0</span>
+                <input type="range" id="t-max" class="hslider"
+                       min="0.05" max="10" step="0.05" value="2"
+                       oninput="onTMaxSlider(this.value)" disabled>
+                <span id="tmax-val" style="font-size:0.78rem;color:#60a5fa;min-width:40px;">2.0 s</span>
+            </div>
+
+            <!-- Click coord bar -->
+            <div id="click-info">
+                🖱️ Click on the plot to read coordinates &nbsp;|&nbsp; t: — &nbsp;|&nbsp; shot: —
+            </div>
+
+        </div>
+
+        <!-- ══ Y-axis zoom slider (vertical, right of plot) ══ -->
+        <div class="yzoom-col">
+            <div class="vslider-label">Y zoom</div>
+            <div class="vslider-wrap">
+                <span class="vslider-tick" id="yz-min-label">wide</span>
+                <input type="range" id="y-half" class="vslider"
+                       min="1" max="50" step="0.5" value="10"
+                       oninput="onYHalfSlider(this.value)" disabled>
+                <span class="vslider-tick" id="yz-max-label">tight</span>
+            </div>
+            <div class="vslider-val" id="yh-val">±10</div>
+        </div>
+
+        <!-- ══ Controls panel ══ -->
+        <div class="controls-rhs">
+
+            <!-- File -->
+            <div class="control-group">
+                <h3>File</h3>
+                <button onclick="openFile()" style="width:100%;">📂 Open .dat File</button>
+                <div id="file-label" style="margin-top:6px;font-size:0.78rem;color:#6b7280;
+                     font-family:'Space Mono',monospace;word-break:break-all;">No file selected</div>
+            </div>
+
+            <!-- Wiggle + time window -->
+            <div class="control-group">
+                <h3>Display</h3>
+                <div class="param-row">
+                    <label>Wiggle scale: <strong id="n-scale-label">2.0</strong></label>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="slider-endlabel">0.1</span>
+                        <input type="range" id="n-scale" min="0.1" max="20" step="0.1" value="2"
+                               style="flex:1;" oninput="onScaleSlider(this.value)" disabled>
+                        <span class="slider-endlabel">20</span>
+                    </div>
+                </div>
+                <div class="param-row">
+                    <label>Samples/shot: <strong id="win-label">1024</strong></label>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="slider-endlabel">64</span>
+                        <input type="range" id="window-samples" min="64" max="4096" step="64" value="1024"
+                               style="flex:1;" oninput="onWindowSlider(this.value)" disabled>
+                        <span class="slider-endlabel">4096</span>
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                    <button onclick="generatePlot()" id="plot-btn" style="flex:1;" disabled>📈 Plot</button>
+                    <button onclick="savePlot()" class="secondary" id="save-btn" style="flex:1;" disabled>💾 PNG</button>
+                </div>
+            </div>
+
+            <!-- Active trace selector -->
+            <div class="control-group">
+                <h3>Active Traces</h3>
+                <p style="font-size:0.76rem;color:#6b7280;margin:0 0 6px;">
+                    Highlighted bright · others dimmed
+                </p>
+                <div id="trace-checklist-wrap" style="position:relative;">
+                    <button id="trace-dropdown-btn" onclick="toggleTraceDropdown()"
+                            class="secondary" style="width:100%;text-align:left;
+                            display:flex;justify-content:space-between;align-items:center;" disabled>
+                        <span id="trace-btn-label">None selected</span>
+                        <span>▾</span>
+                    </button>
+                    <div id="trace-dropdown" class="trace-dropdown" style="display:none;">
+                        <div style="padding:6px 8px;border-bottom:1px solid #333;">
+                            <button onclick="clearActiveTraces()" class="secondary"
+                                    style="width:100%;font-size:0.75rem;padding:4px 8px;">
+                                ✕ Clear all
+                            </button>
+                        </div>
+                        <div id="trace-checklist"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- First-break picks -->
+            <div class="control-group">
+                <h3>First-Break Picks</h3>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <input type="checkbox" id="pick-mode" onchange="togglePickMode(this.checked)">
+                    <label for="pick-mode" style="display:inline;margin:0;color:#e0e0e0;cursor:pointer;font-size:0.88rem;">
+                        Picking mode ON
+                    </label>
+                </div>
+                <button onclick="clearAllPicks()" class="secondary" style="width:100%;margin-bottom:6px;">
+                    🗑 Clear Picks
+                </button>
+                <button onclick="savePicks()" class="success" style="width:100%;" id="save-picks-btn" disabled>
+                    💾 Save Picks CSV
+                </button>
+                <div style="margin-top:6px;font-size:0.76rem;color:#9ca3af;">
+                    Picks: <strong id="pick-count" style="color:#34d399;">0</strong>
+                    / <span id="pick-total">0</span> shots
+                </div>
+            </div>
+
+            <!-- DAT format -->
+            <div class="control-group">
+                <h3>DAT File Format</h3>
+                <div class="param-row">
+                    <label>Sampling rate (Hz)</label>
+                    <input type="number" id="sampling" value="512" step="1" style="width:80px;">
+                </div>
+                <div class="param-row">
+                    <label>Header lines to skip</label>
+                    <input type="number" id="skip-header" value="33" step="1" style="width:80px;">
+                </div>
+                <div class="param-row">
+                    <label>Trace col (0-indexed)</label>
+                    <input type="number" id="col-trace" value="2" step="1" style="width:80px;">
+                </div>
+                <div class="param-row">
+                    <label>Trigger col (0-indexed)</label>
+                    <input type="number" id="col-trigger" value="3" step="1" style="width:80px;">
+                </div>
+                <button onclick="applyParams()" class="secondary" style="width:100%;margin-top:6px;">
+                    ✅ Apply &amp; Reload
+                </button>
+            </div>
+
+        </div><!-- /controls-rhs -->
+    </div><!-- /main-layout -->
+
+    <!-- File summary -->
+    <div id="file-summary" style="display:none;margin-top:14px;" class="control-group">
+        <h3>File Summary</h3>
+        <div id="file-summary-text" style="font-family:'Space Mono',monospace;font-size:0.82rem;
+             color:#a0a0ff;display:flex;gap:24px;flex-wrap:wrap;"></div>
+    </div>
+
+    <!-- Picks table -->
+    <div id="picks-section" style="display:none;margin-top:14px;" class="control-group">
+        <h3>First-Break Picks Table</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-family:'Space Mono',monospace;font-size:0.8rem;">
+                <thead>
+                    <tr style="color:#9ca3af;border-bottom:1px solid #333;">
+                        <th style="padding:6px 10px;text-align:left;">Shot #</th>
+                        <th style="padding:6px 10px;text-align:left;">Sample idx</th>
+                        <th style="padding:6px 10px;text-align:left;">Pick time (s)</th>
+                        <th style="padding:6px 10px;text-align:left;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="picks-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    </div><!-- /tab-viewer -->
+
+
+    <!-- ══════ TAB 2: EDIT DATA ══════ -->
+    <div id="tab-editdata" class="tab-panel">
+        <div style="margin-top:16px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+
+            <div style="flex:0 0 230px;display:flex;flex-direction:column;gap:10px;">
+                <div class="control-group">
+                    <h3>Load Picks CSV</h3>
+                    <button onclick="editLoadCSV()" style="width:100%;">Open CSV</button>
+                    <div id="edit-file-label" style="margin-top:6px;font-size:0.76rem;color:#6b7280;
+                         font-family:'Space Mono',monospace;word-break:break-all;">No file loaded</div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Apply Geometry</h3>
+                    <p style="font-size:0.74rem;color:#6b7280;margin:0 0 8px;">
+                        Select rows, fill fields, apply.
+                    </p>
+                    <div class="param-row">
+                        <label>Shot X (m)</label>
+                        <input type="number" id="edit-shot-x" step="any" placeholder="e.g. 44.0" style="width:100%;">
+                    </div>
+                    <div class="param-row">
+                        <label>Shot Y (m / elev)</label>
+                        <input type="number" id="edit-shot-y" step="any" placeholder="0" style="width:100%;">
+                    </div>
+                    <div class="param-row">
+                        <label>Receiver X (m)</label>
+                        <input type="number" id="edit-recv-x" step="any" placeholder="e.g. 50.0" style="width:100%;">
+                    </div>
+                    <div class="param-row">
+                        <label>Receiver Y (m / elev)</label>
+                        <input type="number" id="edit-recv-y" step="any" placeholder="0" style="width:100%;">
+                    </div>
+                    <button onclick="editApplyGeom()"    style="width:100%;margin-top:4px;">Apply to Selected</button>
+                    <button onclick="editApplyGeomAll()" class="secondary" style="width:100%;margin-top:6px;">Apply to All</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>Save</h3>
+                    <button onclick="editSaveCSV()" class="success" style="width:100%;" id="edit-save-btn" disabled>
+                        Save Edited CSV
+                    </button>
+                    <div id="edit-row-count" style="margin-top:6px;font-size:0.74rem;color:#9ca3af;"></div>
+                </div>
+            </div>
+
+            <div style="flex:1;min-width:0;">
+                <div id="edit-table-wrap" style="overflow-x:auto;">
+                    <div style="color:#4b5563;padding:30px;text-align:center;font-size:0.88rem;">
+                        Load a picks CSV to edit geometry
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!-- /tab-editdata -->
+
+
+    <!-- ══════ TAB 3: INVERSION DATA ══════ -->
+    <div id="tab-inversion" class="tab-panel">
+        <div style="margin-top:16px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+
+            <div style="flex:0 0 250px;display:flex;flex-direction:column;gap:10px;">
+
+                <div class="control-group">
+                    <h3>Step 1 — Select Folder</h3>
+                    <p style="font-size:0.74rem;color:#6b7280;margin:0 0 8px;">
+                        Recursively finds all picks CSVs.
+                    </p>
+                    <button onclick="invGlob()" style="width:100%;">Choose Folder</button>
+                    <div id="inv-folder-label" style="margin-top:6px;font-size:0.74rem;color:#6b7280;
+                         font-family:'Space Mono',monospace;word-break:break-all;">No folder selected</div>
+                    <div id="inv-file-count"   style="margin-top:4px;font-size:0.74rem;color:#9ca3af;"></div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Step 2 — Validate</h3>
+                    <button onclick="invPreview()" id="inv-preview-btn" style="width:100%;" disabled>Check Files</button>
+                    <div id="inv-validation-summary" style="margin-top:8px;font-size:0.74rem;color:#9ca3af;"></div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Step 3 — Assemble</h3>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <input type="checkbox" id="inv-elev-y" style="cursor:pointer;">
+                        <label for="inv-elev-y" style="display:inline;margin:0;color:#e0e0e0;cursor:pointer;font-size:0.84rem;">
+                            Use Y as elevation
+                        </label>
+                    </div>
+                    <button onclick="invAssemble()" id="inv-assemble-btn" style="width:100%;" disabled>
+                        Assemble PyGIMLi File
+                    </button>
+                    <div id="inv-assemble-summary" style="margin-top:8px;font-size:0.74rem;color:#9ca3af;"></div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Step 4 — Save</h3>
+                    <button onclick="invSave()" id="inv-save-btn" class="success" style="width:100%;" disabled>
+                        Save .txt File
+                    </button>
+                </div>
+            </div>
+
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;">
+                <div class="control-group" id="inv-filelist-section" style="display:none;">
+                    <h3>Found Files</h3>
+                    <div id="inv-filelist" style="max-height:220px;overflow-y:auto;
+                         font-family:'Space Mono',monospace;font-size:0.74rem;"></div>
+                </div>
+                <div class="control-group" id="inv-preview-section" style="display:none;">
+                    <h3>PyGIMLi Output Preview (first 30 lines)</h3>
+                    <pre id="inv-preview-text" style="margin:0;font-family:'Space Mono',monospace;
+                         font-size:0.73rem;color:#a0a0ff;background:#0f0f11;padding:12px;
+                         border-radius:6px;overflow-x:auto;max-height:340px;overflow-y:auto;
+                         white-space:pre;"></pre>
+                </div>
+            </div>
+        </div>
+    </div><!-- /tab-inversion -->
+
+</div><!-- /container -->
+<script src="app.js"></script>
+</body>
+</html>
