@@ -1,9 +1,12 @@
-# Kilcoy 3D — LiDAR terrain, switchable drape skins, draped vectors
+# 3D LiDAR terrain, switchable drape skins, draped vectors
 
 GeoTIFF and GPKG/SHP in, glTF out. One terrain mesh, any number of draped
 raster layers you can flip between at runtime, vector lines and points draped
 on the surface, and click-to-inspect that returns real values in real
 coordinates.
+
+<img width="1495" height="802" alt="Screenshot 2026-09-16 at 8 41 57 AM" src="https://github.com/user-attachments/assets/a60799b0-906c-4e91-aaba-786de5df54ef" />
+
 
 ```
 kilcoy_lidar.tif            ──dem2gltf.py────▶  terrain.glb            mesh + UVs
@@ -54,23 +57,7 @@ python vec2overlay.py kilcoy_lidar.tif kilcoy_lines.gpkg --list
   field with its type and numeric range, so you know what to pass to
   `--attribute`.
 
-### Your LiDAR's CRS is broken, and all three scripts work around it
 
-`kilcoy_lidar.tif` carries a `LOCAL_CS` / EngineeringCRS: it is *named*
-"GDA2020 / MGA zone 56" but has an "Unknown engineering datum". PROJ refuses to
-build a transform between that and a real projected CRS, which is why a naive
-reproject fails with `Cannot find coordinate operations from 'EPSG:7856'`.
-
-Each script detects an engineering CRS and recovers the intended EPSG from the
-name — GDA2020 MGA zone *n* is `7800 + n`, so yours resolves to **EPSG:7856** —
-and says so in its output rather than guessing silently. Overrides:
-`--dem-crs`, `--drape-crs`, `--vector-crs`, `--crs`, or `--assume-aligned`.
-
-Better, fix it once at source and nothing downstream ever cares:
-
-```bash
-gdal_edit.py -a_srs EPSG:7856 kilcoy_lidar.tif
-```
 
 ---
 
@@ -80,11 +67,9 @@ gdal_edit.py -a_srs EPSG:7856 kilcoy_lidar.tif
 python dem2gltf.py kilcoy_lidar.tif -o terrain.glb --stride 2
 ```
 
-**Pick a stride deliberately.** Your DEM is 3000 × 2000, so full native
+**Pick a stride deliberately.** The DEM is 3000 × 2000, so full native
 resolution is 6 M vertices / 12 M triangles — about 336 MB of GLB, which will
-not orbit in a browser. The texture grid is *also* 3000 × 2000, and the drape is
-what you actually look at, so striding the mesh while keeping the texture full
-costs almost nothing visually:
+not orbit in a browser. The texture grid is *also* 3000 × 2000, so striding the mesh while keeping the texture full:
 
 | | vertices | GLB | texture |
 |---|---|---|---|
@@ -121,7 +106,7 @@ python drape2skin.py kilcoy_lidar.tif thorium.tif -o skins/ --cmap magma --label
 python drape2skin.py kilcoy_lidar.tif geology.tif -o skins/ --categorical
 ```
 
-### Partial overlap is expected, not an error
+### Partial overlap
 
 Drapes rarely cover the whole LiDAR footprint, and rewarping between grids of
 different resolution leaves hairline nodata fringes. So:
@@ -255,15 +240,10 @@ to live in exactly those tails. Hence exact-by-default.
 
 ## 5. View
 
-Put `terrain_viewer.html` next to `terrain.glb`, `skins/` and `overlays/`, then:
+Double click on the `terrain_viewer.html` file.
 
-```bash
-python -m http.server
-# open http://localhost:8000/terrain_viewer.html
-```
 
-Opening the file straight off disk works too, but `file://` blocks `fetch()`, so
-the viewer shows a drop zone — drag in `terrain.glb`, `skins.json`, the PNGs
+The viewer shows a drop zone — drag in `terrain.glb`, `skins.json`, the PNGs
 (including the `_val.png` grids) and `overlays.json` together. Loose PNGs with
 no manifest become unlabelled skins.
 
@@ -294,48 +274,3 @@ background, reset view.
 
 ---
 
-## Why the skins live outside the glTF
-
-One mesh, N images. Swapping is `material.map = tex` — the geometry never
-reloads, the camera never resets, and adding a tenth drape next month doesn't
-mean re-exporting a multi-million-vertex mesh. The alternatives:
-
-| | geometry copies | new skin later | portable to other viewers |
-|---|---|---|---|
-| **skins outside the glTF** (this) | 1 | drop in a PNG | needs the viewer |
-| all skins as extra materials in one glTF | 1 | re-export mesh | needs viewer code |
-| `KHR_materials_variants` | 1 | re-export mesh | yes — Babylon, `<model-viewer>` |
-| separate glTF per skin | N | export another | yes, but N× the bytes |
-
-If you later need the model to open in a viewer you don't control, that's the
-case for `KHR_materials_variants` — happy to add that export path.
-
-## Folding into petroGLyph
-
-The mesh is ordinary glTF, so `C_gltf_2_htmlPackage/pack.js` will inline it as
-is, minus the skin switcher. Two routes to a single self-contained HTML:
-
-1. Add a "Skins" control to `src/app.js` reading a base64 skin table injected by
-   `pack.js`, and rebuild the bundle. Keeps everything in your pipeline and
-   gives every future model the feature.
-2. Inline the GLB, PNGs and JSON into `terrain_viewer.html` as `data:` URIs.
-
-Note `pack.js` currently reads the model as text for embedded `.gltf`. For
-`.glb` it needs the binary-buffer tweak your README already mentions — or I can
-add a `--format gltf` flag to `dem2gltf.py`.
-
-## Caveats
-
-- **None of this has been run against your actual data.** The sandbox that would
-  have let me open your files was down for the whole session, so grid sizes,
-  overlap, attribute names and value ranges are all unverified. The three
-  dry-run commands in step 0 exist precisely for that — run them first.
-- The viewer loads three.js from unpkg, so it needs a network connection.
-  For a fully offline file, use the petroGLyph packing route above.
-- Canvas value sampling needs the images to be same-origin. Over
-  `python -m http.server` or via drag-and-drop it's fine; loading images by
-  relative path from a `file://` page will taint the canvas and the viewer will
-  report values as unavailable.
-- Normals are baked at `--z-exag`, but the viewer's exaggeration slider scales
-  the node and three.js corrects normals for non-uniform scale, so lighting
-  stays right either way.
