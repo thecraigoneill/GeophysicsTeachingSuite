@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terrain skin viewer</title>
+<style>
+  :root {
+    --bg: #14171c; --panel: rgba(22,26,32,.93); --line: #2e353f;
+    --fg: #e8ecf2; --dim: #98a2b3; --accent: #5ac8fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden;
+    font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--fg); }
+  canvas { display: block; }
+
+  #ui { position: fixed; top: 12px; left: 12px; width: 274px; z-index: 10;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    backdrop-filter: blur(8px); max-height: calc(100vh - 24px); overflow-y: auto; }
+  #ui h1 { font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--dim); margin: 0; padding: 11px 13px; border-bottom: 1px solid var(--line); }
+  .sec { padding: 11px 13px; border-bottom: 1px solid var(--line); }
+  .sec:last-child { border-bottom: 0; }
+  label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 5px;
+    letter-spacing: .03em; }
+  select, button, input[type=file] { font: inherit; color: var(--fg);
+    background: #1e232b; border: 1px solid var(--line); border-radius: 6px; }
+  select { width: 100%; padding: 6px 8px; font-size: 12px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .btns { display: flex; flex-wrap: wrap; gap: 5px; }
+  button { padding: 5px 9px; cursor: pointer; border-radius: 6px; font-size: 12px; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #06121a; border-color: var(--accent);
+    font-weight: 600; }
+  .row { display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; margin-bottom: 7px; }
+  .row:last-child { margin-bottom: 0; }
+  .val { font-variant-numeric: tabular-nums; color: var(--fg); font-size: 12px; }
+
+  #legend canvas { width: 100%; height: 13px; border-radius: 3px; display: block;
+    border: 1px solid var(--line); }
+  #legendScale { display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--dim); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  #classes { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px;
+    font-size: 11px; max-height: 150px; overflow-y: auto; }
+  #classes i { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    margin-right: 5px; vertical-align: -1px; }
+
+  #ovList { display: flex; flex-direction: column; gap: 4px; max-height: 176px;
+    overflow-y: auto; margin-bottom: 7px; }
+  .ovRow { display: flex; align-items: center; gap: 7px; font-size: 12px;
+    cursor: pointer; user-select: none; }
+  .ovRow input { accent-color: var(--accent); margin: 0; flex: none; }
+  .ovRow .sw { width: 14px; height: 4px; border-radius: 2px; flex: none; }
+  .ovRow .sw.dot { width: 9px; height: 9px; border-radius: 50%; }
+  .ovRow span.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ovRow small { color: var(--dim); font-size: 10px; margin-left: auto; flex: none;
+    font-variant-numeric: tabular-nums; }
+
+  #ovLegends { margin-top: 9px; display: flex; flex-direction: column; gap: 8px; }
+  .ovLeg { font-size: 10.5px; }
+  .ovLeg .t { color: var(--dim); margin-bottom: 3px; display: flex;
+    justify-content: space-between; gap: 6px; }
+  .ovLeg .t b { color: var(--fg); font-weight: 600; }
+  .ovLeg .bar { height: 9px; border-radius: 3px; border: 1px solid var(--line); }
+  .ovLeg .sc { display: flex; justify-content: space-between; color: var(--dim);
+    font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .ovLeg .cls { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+  .ovLeg .cls i { display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+    margin-right: 4px; vertical-align: -1px; }
+
+  #corners { font-size: 10.5px; font-variant-numeric: tabular-nums;
+    border-collapse: collapse; width: 100%; }
+  #corners td { padding: 1px 0; white-space: nowrap; }
+  #corners td.k { color: var(--dim); padding-right: 8px; width: 26px; }
+
+  #readout { position: fixed; bottom: 12px; left: 12px; z-index: 10;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; display: none; min-width: 266px;
+    max-width: 340px; }
+  #readout .hd { font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--dim); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  #readout .hd i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  #readout table { border-collapse: collapse; width: 100%;
+    font-variant-numeric: tabular-nums; }
+  #readout td { padding: 1px 0; vertical-align: baseline; }
+  #readout td.k { color: var(--dim); padding-right: 10px; white-space: nowrap; }
+  #readout td.v { text-align: right; white-space: nowrap; }
+  #readout tr.big td.v { font-weight: 600; font-size: 14px; }
+  #readout tr.big td.k { color: var(--fg); }
+  #readout .rule td { border-top: 1px solid var(--line); padding-top: 5px; }
+  #readout .note { color: var(--dim); font-size: 10px; margin-top: 6px; line-height: 1.4; }
+  #readout .x { position: absolute; top: 6px; right: 9px; color: var(--dim);
+    cursor: pointer; font-size: 14px; line-height: 1; }
+  #readout .x:hover { color: var(--fg); }
+  /* where the clicked value sits on the layer's ramp */
+  #readout .pos { position: relative; height: 8px; border-radius: 3px;
+    border: 1px solid var(--line); margin: 5px 0 2px; }
+  #readout .pos span { position: absolute; top: -3px; width: 2px; height: 12px;
+    background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.75); transform: translateX(-1px); }
+  #readout .posv { display: flex; justify-content: space-between; color: var(--dim);
+    font-size: 9.5px; font-variant-numeric: tabular-nums; }
+
+  #labels { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
+  #labels .lab { position: absolute; transform: translate(-50%,-50%);
+    font: 10.5px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+    background: rgba(8,10,14,.72); color: #fff; padding: 2px 5px; border-radius: 3px; }
+  #labels .lab.corner { border: 1px solid rgba(255,255,255,.22); }
+  #labels .lab.feat { font-family: ui-sans-serif, system-ui, sans-serif;
+    background: rgba(8,10,14,.66); }
+  /* graduated axis ticks: subtle, no chrome */
+  /* always white, with a dark halo so they hold up on a light background too */
+  #labels .lab.axis { background: none; padding: 0; color: #fff;
+    font-size: 10px; letter-spacing: .02em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.85),
+                 0 0 7px rgba(0,0,0,.6); }
+  #labels .lab.axis.title { font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: rgba(255,255,255,.78); }
+
+  #furniture { position: fixed; right: 14px; bottom: 14px; z-index: 9;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    pointer-events: none; }
+  #compass { width: 58px; height: 58px; }
+  #compass .dial { fill: rgba(8,10,14,.66); stroke: rgba(255,255,255,.22); }
+  #compass .ndl { fill: #ff4d4d; }
+  #compass .tail { fill: rgba(255,255,255,.75); }
+  #compass text { fill: #fff; font: 600 11px ui-sans-serif, system-ui, sans-serif; }
+  #scalebar { background: rgba(8,10,14,.66); border-radius: 4px; padding: 5px 7px 4px;
+    text-align: center; }
+  #scalebar .bar { height: 5px; background: linear-gradient(90deg,
+      #fff 0 25%, #222 25% 50%, #fff 50% 75%, #222 75% 100%);
+    border: 1px solid rgba(255,255,255,.55); border-radius: 1px; }
+  #scalebar .txt { font: 10.5px/1.3 ui-monospace, Menlo, monospace; color: #fff;
+    margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+  #hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 9; color: var(--dim); font-size: 10.5px; text-align: center; }
+  #drop { position: fixed; inset: 0; z-index: 20; display: none;
+    place-items: center; background: rgba(12,14,18,.96); text-align: center; padding: 30px; }
+  #drop.show { display: grid; }
+  #drop .box { border: 2px dashed var(--line); border-radius: 14px; padding: 40px 52px;
+    max-width: 580px; }
+  #drop h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
+  #drop p { color: var(--dim); margin: 0 0 8px; font-size: 12.5px; }
+  #drop code { background: #1e232b; padding: 1px 5px; border-radius: 4px;
+    font-size: 12px; color: var(--accent); }
+  #drop.drag .box { border-color: var(--accent); background: rgba(90,200,250,.06); }
+  #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 15; color: var(--dim); }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+
+<div id="ui" hidden>
+  <h1>Terrain</h1>
+
+  <div class="sec">
+    <label for="skin">Draped layer</label>
+    <select id="skin"></select>
+    <div id="cover" style="font-size:11px;color:var(--dim);margin-top:6px"></div>
+    <div class="btns" style="margin-top:7px">
+      <button id="prev">◀</button><button id="next">▶</button>
+      <button id="noskin">No skin</button>
+      <button id="readAll" title="On click, read every skin at that point">Read all</button>
+    </div>
+  </div>
+
+  <div class="sec" id="legend" hidden>
+    <label id="legendLabel">Legend</label>
+    <canvas id="legendBar" width="256" height="1"></canvas>
+    <div id="legendScale"><span></span><span></span></div>
+    <div id="classes" hidden></div>
+  </div>
+
+  <div class="sec" id="ovSec" hidden>
+    <label>Vector overlays</label>
+    <div id="ovList"></div>
+    <div class="btns">
+      <button id="ovAll">All</button>
+      <button id="ovNone">None</button>
+      <button id="ovLabels">Labels</button>
+      <button id="ovXray">X-ray</button>
+    </div>
+    <div class="row" style="margin-top:10px"><label style="margin:0">Line width</label>
+      <span class="val" id="lwVal">—</span></div>
+    <input type="range" id="lw" min="0.5" max="8" step="0.25" value="2.5">
+    <div id="ovLegends"></div>
+  </div>
+
+  <div class="sec">
+    <div class="row"><label style="margin:0">Vertical exaggeration</label>
+      <span class="val" id="exagVal">1.0×</span></div>
+    <input type="range" id="exag" min="0.2" max="10" step="0.1" value="1">
+    <div class="row" style="margin-top:9px"><label style="margin:0">Sun azimuth</label>
+      <span class="val" id="azVal">315°</span></div>
+    <input type="range" id="az" min="0" max="360" step="5" value="315">
+    <div class="row" style="margin-top:9px"><label style="margin:0">Sun elevation</label>
+      <span class="val" id="elVal">45°</span></div>
+    <input type="range" id="el" min="5" max="89" step="1" value="45">
+  </div>
+
+  <div class="sec">
+    <div class="btns">
+      <button id="axes">E–N axes</button>
+      <button id="box">Extent box</button>
+      <button id="wire">Wireframe</button>
+      <button id="flat">Flat shade</button>
+      <button id="cutout">Cut nodata</button>
+      <button id="spin">Auto-rotate</button>
+      <button id="light">Light bg</button>
+      <button id="home">Reset view</button>
+    </div>
+  </div>
+
+  <div class="sec">
+    <label>Extent corners</label>
+    <table id="corners"></table>
+  </div>
+
+  <div class="sec" id="meta" style="font-size:11px;color:var(--dim)"></div>
+</div>
+
+<div id="labels"></div>
+<div id="readout"></div>
+
+<div id="furniture">
+  <svg id="compass" viewBox="0 0 100 100">
+    <circle class="dial" cx="50" cy="50" r="46" stroke-width="2"/>
+    <g id="needle">
+      <polygon class="ndl" points="50,12 60,54 50,47 40,54"/>
+      <polygon class="tail" points="50,88 40,46 50,53 60,46"/>
+    </g>
+    <text x="50" y="14" text-anchor="middle" id="nLetter">N</text>
+  </svg>
+  <div id="scalebar">
+    <div class="bar" id="scaleBar" style="width:100px"></div>
+    <div class="txt" id="scaleTxt">—</div>
+  </div>
+</div>
+
+<div id="hint">click terrain or a vector for values · 1–9 skins · [ ] cycle · 0 bare · A axes · B box · L labels</div>
+<div id="status">loading…</div>
+
+<div id="drop">
+  <div class="box">
+    <h2>Drop your terrain files here</h2>
+    <p>Drag in <code>terrain.glb</code>, <code>skins.json</code>, the skin
+       <code>.png</code>s (including the <code>_val.png</code> value grids), and
+       <code>overlays.json</code> — all together.</p>
+    <p>Opening straight off disk blocks <code>fetch()</code>, so drag-and-drop is
+       the offline path. Or run <code>python -m http.server</code> in that folder
+       and load <code>http://localhost:8000/terrain_viewer.html</code>.</p>
+    <input type="file" id="picker" multiple
+           accept=".glb,.gltf,.png,.jpg,.jpeg,.webp,.json" style="margin-top:14px">
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- scene ----
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14171c);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 5e6);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+const hemi = new THREE.HemisphereLight(0xdfe8f5, 0x2b2f38, 1.1);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+const S = {
+  root: null, meshes: [], material: null, extras: {}, radius: 1,
+  skins: [], current: -1, textures: new Map(), home: null,
+  overlays: [], ovGroup: null, boxGroup: null, pickables: [],
+  axesGroup: null, axisEdges: {}, axisLabels: [], showAxes: true,
+  cornerLabels: [], featLabels: [], showFeatLabels: false, readAll: false,
+};
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  S.overlays.forEach(o => o.materials.forEach(m => {
+    if (m.resolution) m.resolution.set(innerWidth, innerHeight); }));
+});
+
+// ---------------------------------------------------------------- model ----
+const loader = new GLTFLoader();
+
+function setSun() {
+  const az = THREE.MathUtils.degToRad(+$('az').value);
+  const el = THREE.MathUtils.degToRad(+$('el').value);
+  const d = S.radius * 4 || 1000;
+  sun.position.set(d * Math.cos(el) * Math.sin(az), d * Math.sin(el),
+                   -d * Math.cos(el) * Math.cos(az));
+  $('azVal').textContent = $('az').value + '°';
+  $('elVal').textContent = $('el').value + '°';
+}
+
+function frame() {
+  const box = new THREE.Box3().setFromObject(S.root);
+  const size = box.getSize(new THREE.Vector3());
+  const c = box.getCenter(new THREE.Vector3());
+  S.radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+  const dist = S.radius / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5)) * 1.15;
+  camera.near = Math.max(dist / 5000, 0.01);
+  camera.far = dist * 50;
+  camera.updateProjectionMatrix();
+  camera.position.set(c.x + dist * 0.55, c.y + dist * 0.62, c.z + dist * 0.72);
+  controls.target.copy(c);
+  controls.update();
+  S.home = { pos: camera.position.clone(), tgt: controls.target.clone() };
+  setSun();
+}
+
+function loadModel(buffer) {
+  return new Promise((res, rej) => loader.parse(buffer, '', gltf => {
+    if (S.root) scene.remove(S.root);
+    S.root = gltf.scene;
+    S.extras = (gltf.parser.json.asset && gltf.parser.json.asset.extras) || {};
+    S.meshes = [];
+    S.root.traverse(o => { if (o.isMesh) S.meshes.push(o); });
+
+    S.material = new THREE.MeshStandardMaterial({
+      color: 0xffffff, metalness: 0.0, roughness: 1.0, side: THREE.DoubleSide });
+    S.meshes.forEach(m => { m.material = S.material; });
+
+    S.ovGroup = new THREE.Group();   S.root.add(S.ovGroup);
+    S.boxGroup = new THREE.Group();  S.boxGroup.visible = false; S.root.add(S.boxGroup);
+    S.axesGroup = new THREE.Group(); S.root.add(S.axesGroup);
+
+    scene.add(S.root);
+    buildHeightField();        // coarse terrain proxy, for label occlusion
+    buildExtentBox();
+    buildAxes();
+    frame();
+    res(gltf);
+  }, rej));
+}
+
+// ------------------------------------------------------------- textures ----
+const texLoader = new THREE.TextureLoader();
+
+function loadTexture(url) {
+  if (S.textures.has(url)) return Promise.resolve(S.textures.get(url));
+  return new Promise((res, rej) => texLoader.load(url, t => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.flipY = false;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    S.textures.set(url, t);
+    res(t);
+  }, undefined, rej));
+}
+
+async function applySkin(i) {
+  if (!S.material) return;
+  if (i < 0 || i >= S.skins.length) {
+    S.material.map = null; S.material.needsUpdate = true;
+    S.current = -1; $('skin').value = '-1';
+    $('legend').hidden = true; $('noskin').classList.add('on');
+    $('cover').textContent = '';
+    return;
+  }
+  const skin = S.skins[i];
+  try { S.material.map = await loadTexture(skin.url); }
+  catch (e) {
+    console.error('skin failed to load', skin, e);
+    $('cover').innerHTML = `<span style="color:#ff8a80">could not load ${skin.url}</span>`;
+    return;
+  }
+  S.material.needsUpdate = true;
+  S.current = i;
+  $('skin').value = String(i);
+  $('noskin').classList.remove('on');
+  drawLegend(skin.legend);
+
+  const c = skin.coverage;
+  if (c == null) $('cover').textContent = '';
+  else if (c > 0.995) $('cover').textContent = 'covers the full terrain';
+  else $('cover').innerHTML =
+    `covers <b style="color:var(--fg)">${(c * 100).toFixed(1)}%</b> of the terrain` +
+    ` — rest is grey <span style="opacity:.7">(“Cut nodata” to punch out)</span>`;
+}
+
+// ================================================================ VALUES ====
+function parseLut(hex) {
+  if (!hex || hex.length < 768) return null;
+  const lut = new Array(256);
+  for (let i = 0; i < 256; i++) {
+    const o = i * 6;
+    lut[i] = [parseInt(hex.substr(o, 2), 16), parseInt(hex.substr(o + 2, 2), 16),
+              parseInt(hex.substr(o + 4, 2), 16)];
+  }
+  return lut;
+}
+
+const loadImage = url => new Promise((res, rej) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => res(img);
+  img.onerror = rej;
+  img.src = url;
+});
+
+async function getSampler(skin) {
+  if (skin._sampler !== undefined) return skin._sampler;
+  skin._sampler = null;
+  const exact = !!skin.valueUrl;
+  const lg = skin.legend || {};
+  if (!exact && (lg.type !== 'continuous' || !lg.lut)) return null;
+  try {
+    const img = await loadImage(exact ? skin.valueUrl : skin.url);
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(img, 0, 0);
+    cx.getImageData(0, 0, 1, 1);            // provoke SecurityError early
+    skin._sampler = {
+      cx, w: cv.width, h: cv.height, exact,
+      vmin: exact ? skin.values.vmin : lg.vmin,
+      vmax: exact ? skin.values.vmax : lg.vmax,
+      lut: exact ? null : parseLut(lg.lut),
+      label: (exact && skin.values.label) || lg.label || skin.name,
+    };
+  } catch (e) {
+    console.warn('value sampling unavailable for', skin.name, e);
+    skin._sampler = null;
+  }
+  return skin._sampler;
+}
+
+function sampleAt(s, u, v) {
+  if (!s) return null;
+  const x = Math.min(s.w - 1, Math.max(0, Math.floor(u * s.w)));
+  const y = Math.min(s.h - 1, Math.max(0, Math.floor(v * s.h)));
+  const d = s.cx.getImageData(x, y, 1, 1).data;
+  if (d[3] < 128) return { nodata: true };
+  if (s.exact) {
+    const i = (d[0] << 16) | (d[1] << 8) | d[2];
+    return { v: s.vmin + (i / 16777215) * (s.vmax - s.vmin), exact: true };
+  }
+  let best = -1, bd = Infinity;
+  for (let k = 0; k < 256; k++) {
+    const c = s.lut[k];
+    const dd = (c[0] - d[0]) ** 2 + (c[1] - d[1]) ** 2 + (c[2] - d[2]) ** 2;
+    if (dd < bd) { bd = dd; best = k; }
+  }
+  if (bd > 1800) return { nodata: true };
+  return { v: s.vmin + (best / 255) * (s.vmax - s.vmin), exact: false,
+           saturated: best === 0 ? 'low' : (best === 255 ? 'high' : null) };
+}
+
+const fmtV = v => {
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e5 || a < 1e-3)) return v.toExponential(3);
+  return v.toLocaleString(undefined, { maximumSignificantDigits: 6 });
+};
+
+// --------------------------------------------------------------- legend ----
+const RAMPS = {
+  viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
+  magma:   ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf'],
+  inferno: ['#000004', '#57106e', '#bc3754', '#f98e09', '#fcffa4'],
+  plasma:  ['#0d0887', '#7e03a8', '#cc4778', '#f89540', '#f0f921'],
+  cividis: ['#00224e', '#35456c', '#666970', '#9d9268', '#e1cc55'],
+  turbo:   ['#30123b', '#4675ed', '#1bd0d5', '#a4fc3c', '#fbb938', '#e5460a', '#7a0403'],
+  terrain: ['#333399', '#00b2b2', '#99e699', '#e6cc80', '#804d3b', '#ffffff'],
+  gray:    ['#000000', '#ffffff'],
+  rdylbu:  ['#a50026', '#f46d43', '#fee090', '#abd9e9', '#313695'],
+};
+
+const fmtNum = v => Math.abs(v) >= 1e4 || (v !== 0 && Math.abs(v) < 1e-2)
+  ? v.toExponential(2) : (+v.toFixed(3)).toString();
+
+function drawLegend(lg) {
+  const box = $('legend'), cls = $('classes'), bar = $('legendBar');
+  if (!lg || lg.type === 'rgb') { box.hidden = true; return; }
+  box.hidden = false;
+  $('legendLabel').textContent = lg.label || 'Legend';
+  if (lg.type === 'categorical') {
+    bar.style.display = 'none'; $('legendScale').style.display = 'none';
+    cls.hidden = false;
+    cls.innerHTML = lg.classes.map(c =>
+      `<div><i style="background:${c.color}"></i>${c.value}</div>`).join('');
+    return;
+  }
+  cls.hidden = true;
+  bar.style.display = 'block'; $('legendScale').style.display = 'flex';
+  const g = bar.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 256, 0);
+  (lg.ramp || RAMPS[lg.cmap] || RAMPS.viridis).forEach((c, i, a) =>
+    grad.addColorStop(i / (a.length - 1), c));
+  g.fillStyle = grad; g.fillRect(0, 0, 256, 1);
+  $('legendScale').children[0].textContent = fmtNum(lg.vmin);
+  $('legendScale').children[1].textContent = fmtNum(lg.vmax);
+}
+
+// ------------------------------------------------------------- overlays ----
+let DOT = null;
+function dotTexture() {
+  if (DOT) return DOT;
+  const s = 128, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  g.beginPath(); g.arc(s / 2, s / 2, s / 2 - 10, 0, Math.PI * 2);
+  g.fillStyle = '#fff'; g.fill();
+  g.lineWidth = 9; g.strokeStyle = 'rgba(0,0,0,.9)'; g.stroke();
+  DOT = new THREE.CanvasTexture(c);
+  DOT.colorSpace = THREE.SRGBColorSpace;
+  DOT.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return DOT;
+}
+
+function buildOverlays(man) {
+  if (!S.ovGroup) return;
+  S.ovGroup.clear();
+  S.overlays = [];
+  S.pickables = [];
+  S.featLabels.forEach(l => l.el.remove());
+  S.featLabels = [];
+
+  (man.layers || []).forEach(layer => {
+    const group = new THREE.Group();
+    const materials = [];
+    const base = new THREE.Color(layer.color || '#ff3b30');
+    const hasVertexCols = Array.isArray(layer.colors);
+    const rec = { id: layer.id, name: layer.name, color: layer.color, group,
+      materials, visible: true, n: layer.n_points || 0, geom: layer.geom,
+      legend: layer.legend, attribute: layer.attribute,
+      values: layer.values || null, fields: layer.fields || null,
+      props: layer.props || null, source: layer.source,
+      colors: hasVertexCols ? layer.colors[0] : null };
+
+    if (layer.geom === 'point') {
+      const flat = (layer.parts && layer.parts[0]) || [];
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(flat, 3));
+      if (hasVertexCols)
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(layer.colors[0], 3));
+      const mat = new THREE.PointsMaterial({
+        size: layer.point_size || 7, sizeAttenuation: false,
+        map: dotTexture(), alphaTest: 0.45, transparent: true, depthTest: true,
+        color: hasVertexCols ? 0xffffff : base, vertexColors: hasVertexCols });
+      materials.push(mat);
+      const pts = new THREE.Points(geo, mat);
+      pts.userData = { rec, kind: 'point' };
+      group.add(pts);
+      S.pickables.push(pts);
+    } else {
+      (layer.parts || []).forEach((p, i) => {
+        if (p.length < 6) return;
+        const geo = new LineGeometry();
+        geo.setPositions(p);
+        const hex = (layer.part_colors && layer.part_colors[i]) || layer.color;
+        const mat = new LineMaterial({ color: new THREE.Color(hex).getHex(),
+          linewidth: layer.width || 2.5, worldUnits: false, dashed: false });
+        mat.resolution.set(innerWidth, innerHeight);
+        materials.push(mat);
+        const ln = new Line2(geo, mat);
+        ln.computeLineDistances();
+        ln.userData = { rec, kind: 'line', part: i };
+        group.add(ln);
+        S.pickables.push(ln);
+      });
+    }
+
+    S.ovGroup.add(group);
+    S.overlays.push(rec);
+
+    (layer.labels || []).forEach(l => {
+      const el = document.createElement('div');
+      el.className = 'lab feat';
+      el.textContent = l.text;
+      el.style.display = 'none';
+      el.style.borderLeft = `3px solid ${layer.color}`;
+      $('labels').appendChild(el);
+      S.featLabels.push({ el, pos: new THREE.Vector3(l.at[0], l.at[1], l.at[2]), rec });
+    });
+  });
+
+  if (S.overlays.length) {
+    const m = S.overlays[0].materials.find(m => 'linewidth' in m);
+    if (m) $('lw').value = m.linewidth;
+  }
+  applyLineWidth();
+  buildOverlayUI();
+  buildOverlayLegends();
+}
+
+function buildOverlayUI() {
+  const list = $('ovList');
+  $('ovSec').hidden = S.overlays.length === 0;
+  list.innerHTML = '';
+  S.overlays.forEach(o => {
+    const row = document.createElement('label');
+    row.className = 'ovRow';
+    const dot = o.geom === 'point' ? ' dot' : '';
+    const sw = o.legend && o.legend.type === 'continuous'
+      ? `<span class="sw${dot}" style="background:linear-gradient(90deg,${(o.legend.ramp || ['#888']).join(',')})"></span>`
+      : `<span class="sw${dot}" style="background:${o.color}"></span>`;
+    row.innerHTML = `<input type="checkbox" checked>` + sw +
+      `<span class="n">${o.name}</span><small>${o.n.toLocaleString()}</small>`;
+    row.querySelector('input').onchange = e => {
+      o.visible = e.target.checked;
+      o.group.visible = o.visible;
+      buildOverlayLegends();
+    };
+    list.appendChild(row);
+  });
+}
+
+function buildOverlayLegends() {
+  const host = $('ovLegends');
+  host.innerHTML = '';
+  S.overlays.filter(o => o.visible && o.legend).forEach(o => {
+    const lg = o.legend;
+    const d = document.createElement('div');
+    d.className = 'ovLeg';
+    d.innerHTML = lg.type === 'continuous'
+      ? `<div class="t"><b>${lg.label}</b><span>${o.name}</span></div>` +
+        `<div class="bar" style="background:linear-gradient(90deg,${lg.ramp.join(',')})"></div>` +
+        `<div class="sc"><span>${fmtNum(lg.vmin)}</span><span>${fmtNum(lg.vmax)}</span></div>`
+      : `<div class="t"><b>${lg.label}</b><span>${o.name}</span></div>` +
+        `<div class="cls">` + lg.classes.map(c =>
+          `<div><i style="background:${c.color}"></i>${c.value}</div>`).join('') + `</div>`;
+    host.appendChild(d);
+  });
+}
+
+function applyLineWidth() {
+  const w = +$('lw').value;
+  $('lwVal').textContent = w.toFixed(2) + ' px';
+  S.overlays.forEach(o => o.materials.forEach(m => {
+    if ('linewidth' in m) m.linewidth = w; }));
+}
+$('lw').oninput = applyLineWidth;
+
+function setAllOverlays(on) {
+  S.overlays.forEach(o => { o.visible = on; o.group.visible = on; });
+  $('ovList').querySelectorAll('input').forEach(i => { i.checked = on; });
+  buildOverlayLegends();
+}
+$('ovAll').onclick = () => setAllOverlays(true);
+$('ovNone').onclick = () => setAllOverlays(false);
+
+// ============================================== GRADUATED E-N AXES ==========
+// Ticked easting/northing scales along the base of the LiDAR grid. Only the two
+// edges facing the camera are drawn, so the graduations never read backwards or
+// sit behind the terrain; which two those are is re-evaluated as you orbit.
+
+function niceStep(span, want) {
+  const t = span / want;
+  const p = Math.pow(10, Math.floor(Math.log10(t)));
+  return [1, 2, 2.5, 5, 10].map(m => m * p)
+    .reduce((a, b) => Math.abs(b - t) < Math.abs(a - t) ? b : a);
+}
+
+function addAxisLabel(text, pos, edge, title) {
+  const el = document.createElement('div');
+  el.className = 'lab axis' + (title ? ' title' : '');
+  el.textContent = text;
+  el.style.display = 'none';
+  $('labels').appendChild(el);
+  S.axisLabels.push({ el, pos, edge, hidden: true });
+}
+
+function buildAxes() {
+  if (!S.axesGroup) return;
+  S.axesGroup.clear();
+  S.axisLabels.forEach(l => l.el.remove());
+  S.axisLabels = [];
+  S.axisEdges = {};
+
+  const b = S.extras.bounds, o = S.extras.origin || [0, 0];
+  const zr = S.extras.z_range || [0, 1];
+  const baked = S.extras.z_exaggeration || 1;
+  if (!b) return;
+
+  const x0 = b[0] - o[0], x1 = b[2] - o[0];
+  const zN = -(b[3] - o[1]), zS = -(b[1] - o[1]);   // north edge, south edge
+  const y = zr[0] * baked;                           // base of the grid
+  const spanE = b[2] - b[0], spanN = b[3] - b[1];
+  const tick = Math.max(spanE, spanN) * 0.018;
+  const stepE = niceStep(spanE, 5), stepN = niceStep(spanN, 5);
+
+  const mat = new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.42 });
+  const fmt = v => Math.round(v).toLocaleString();
+
+  // ---- easting graduations, on the north and south edges ----------------
+  for (const [key, z, dir] of [['S', zS, +1], ['N', zN, -1]]) {
+    const pts = [x0, y, z, x1, y, z];                       // the axis line
+    for (let e = Math.ceil(b[0] / stepE) * stepE; e <= b[2] + 1e-6; e += stepE) {
+      const lx = e - o[0];
+      pts.push(lx, y, z, lx, y, z + dir * tick);
+      addAxisLabel(fmt(e), new THREE.Vector3(lx, y, z + dir * tick * 2.1), 'x' + key);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const seg = new THREE.LineSegments(g, mat);
+    S.axesGroup.add(seg);
+    S.axisEdges['x' + key] = seg;
+    addAxisLabel('Easting (m)',
+      new THREE.Vector3((x0 + x1) / 2, y, z + dir * tick * 4.6), 'x' + key, true);
+  }
+
+  // ---- northing graduations, on the west and east edges -----------------
+  for (const [key, x, dir] of [['W', x0, -1], ['E', x1, +1]]) {
+    const pts = [x, y, zN, x, y, zS];
+    for (let n = Math.ceil(b[1] / stepN) * stepN; n <= b[3] + 1e-6; n += stepN) {
+      const lz = -(n - o[1]);
+      pts.push(x, y, lz, x + dir * tick, y, lz);
+      addAxisLabel(fmt(n), new THREE.Vector3(x + dir * tick * 2.1, y, lz), 'z' + key);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const seg = new THREE.LineSegments(g, mat);
+    S.axesGroup.add(seg);
+    S.axisEdges['z' + key] = seg;
+    addAxisLabel('Northing (m)',
+      new THREE.Vector3(x + dir * tick * 5.2, y, (zN + zS) / 2), 'z' + key, true);
+  }
+
+  updateAxes();
+}
+
+const _camLocal = new THREE.Vector3();
+
+function updateAxes() {
+  if (!S.axesGroup || !S.extras.bounds) return;
+  const b = S.extras.bounds, o = S.extras.origin || [0, 0];
+  const cx = (b[0] + b[2]) / 2 - o[0];
+  const cz = -((b[1] + b[3]) / 2 - o[1]);
+
+  _camLocal.copy(camera.position);
+  S.root.worldToLocal(_camLocal);
+
+  // pick whichever edge of each pair the camera is standing on
+  const ex = _camLocal.z > cz ? 'xS' : 'xN';
+  const ez = _camLocal.x > cx ? 'zE' : 'zW';
+
+  for (const k in S.axisEdges)
+    S.axisEdges[k].visible = S.showAxes && (k === ex || k === ez);
+  for (const l of S.axisLabels)
+    l.hidden = !(S.showAxes && (l.edge === ex || l.edge === ez));
+}
+
+// ---------------------------------------------- extent box + corner tags ----
+function buildExtentBox() {
+  if (!S.boxGroup) return;
+  S.boxGroup.clear();
+  S.cornerLabels.forEach(l => l.el.remove());
+  S.cornerLabels = [];
+  $('corners').innerHTML = '';
+
+  const b = S.extras.bounds, o = S.extras.origin || [0, 0];
+  const zr = S.extras.z_range || [0, 1];
+  const baked = S.extras.z_exaggeration || 1;
+  if (!b) return;
+
+  const x0 = b[0] - o[0], x1 = b[2] - o[0];
+  const z0 = -(b[3] - o[1]), z1 = -(b[1] - o[1]);
+  const y0 = zr[0] * baked, y1 = zr[1] * baked;
+
+  const helper = new THREE.Box3Helper(
+    new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+    new THREE.Color(0x5ac8fa));
+  helper.material.transparent = true;
+  helper.material.opacity = 0.55;
+  helper.material.depthTest = false;
+  S.boxGroup.add(helper);
+
+  const corners = [
+    { k: 'NW', E: b[0], N: b[3], p: new THREE.Vector3(x0, y0, z0) },
+    { k: 'NE', E: b[2], N: b[3], p: new THREE.Vector3(x1, y0, z0) },
+    { k: 'SE', E: b[2], N: b[1], p: new THREE.Vector3(x1, y0, z1) },
+    { k: 'SW', E: b[0], N: b[1], p: new THREE.Vector3(x0, y0, z1) },
+  ];
+  const f = v => v.toLocaleString(undefined,
+    { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  $('corners').innerHTML = corners.map(c =>
+    `<tr><td class="k">${c.k}</td><td>${f(c.E)} E</td></tr>` +
+    `<tr><td class="k"></td><td style="color:var(--dim)">${f(c.N)} N</td></tr>`
+  ).join('') +
+    `<tr><td class="k"></td><td style="color:var(--dim);padding-top:4px">` +
+    `${(b[2] - b[0]).toLocaleString()} × ${(b[3] - b[1]).toLocaleString()} m</td></tr>`;
+
+  corners.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'lab corner';
+    el.innerHTML = `<b style="color:#5ac8fa">${c.k}</b> ${f(c.E)}E<br>` +
+                   `<span style="opacity:.85">&nbsp;&nbsp;&nbsp;${f(c.N)}N</span>`;
+    el.style.display = 'none';
+    $('labels').appendChild(el);
+    S.cornerLabels.push({ el, pos: c.p });
+  });
+}
+
+// ================================================== LABEL DEPTH OCCLUSION ===
+// Labels are DOM elements layered over the canvas, so they have no depth
+// relationship to the scene at all -- a tick sitting at the base of the grid
+// will happily draw over the ridge in front of it. Raycasting the real mesh per
+// label per frame is far too slow at a million-plus triangles, so we bin the
+// terrain into a coarse heightfield once at load and march the camera ray
+// against it instead. ~50 samples per label per frame, and it only has to be
+// right to within a cell.
+
+const HF = { res: 0, grid: null, x0: 0, x1: 0, z0: 0, z1: 0, eps: 0 };
+
+function buildHeightField(res = 220) {
+  HF.res = 0; HF.grid = null;
+  const b = S.extras.bounds, o = S.extras.origin || [0, 0];
+  if (!b || !S.meshes.length) return;
+
+  HF.x0 = b[0] - o[0]; HF.x1 = b[2] - o[0];
+  HF.z0 = -(b[3] - o[1]); HF.z1 = -(b[1] - o[1]);
+  const zr = S.extras.z_range || [0, 1];
+  HF.eps = Math.max(1e-3, (zr[1] - zr[0]) * 0.01);
+
+  const g = new Float32Array(res * res).fill(-Infinity);
+  const sx = res / (HF.x1 - HF.x0), sz = res / (HF.z1 - HF.z0);
+
+  for (const m of S.meshes) {
+    const p = m.geometry.getAttribute('position');
+    if (!p) continue;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      let gx = ((x - HF.x0) * sx) | 0, gz = ((z - HF.z0) * sz) | 0;
+      if (gx < 0) gx = 0; else if (gx >= res) gx = res - 1;
+      if (gz < 0) gz = 0; else if (gz >= res) gz = res - 1;
+      const k = gz * res + gx;
+      if (y > g[k]) g[k] = y;
+    }
+  }
+  HF.res = res;
+  HF.grid = g;
+}
+
+function hfAt(x, z) {
+  if (!HF.grid) return -Infinity;
+  if (x < HF.x0 || x > HF.x1 || z < HF.z0 || z > HF.z1) return -Infinity;
+  const r = HF.res;
+  let gx = ((x - HF.x0) / (HF.x1 - HF.x0) * r) | 0;
+  let gz = ((z - HF.z0) / (HF.z1 - HF.z0) * r) | 0;
+  if (gx >= r) gx = r - 1;
+  if (gz >= r) gz = r - 1;
+  return HF.grid[gz * r + gx];
+}
+
+function occluded(p, cam, steps) {
+  if (!HF.grid) return false;
+  const dx = cam.x - p.x, dy = cam.y - p.y, dz = cam.z - p.z;
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const h = hfAt(p.x + dx * t, p.z + dz * t);
+    if (h !== -Infinity && h > p.y + dy * t + HF.eps) return true;
+  }
+  return false;
+}
+
+// ------------------------------------------------------- label projection ---
+const _v = new THREE.Vector3();
+const _camL = new THREE.Vector3();
+
+function place(list, on, depth) {
+  if (!list.length) return;
+  _camL.copy(camera.position);
+  S.root.worldToLocal(_camL);
+  const steps = list.length > 200 ? 24 : 48;
+
+  for (const l of list) {
+    if (!on || l.hidden || (l.rec && !l.rec.visible)) {
+      l.el.style.display = 'none'; continue;
+    }
+    _v.copy(l.pos);
+    S.root.localToWorld(_v);
+    _v.project(camera);
+    if (_v.z > 1 || _v.x < -1.15 || _v.x > 1.15 || _v.y < -1.15 || _v.y > 1.15) {
+      l.el.style.display = 'none'; continue;
+    }
+    if (depth !== false && occluded(l.pos, _camL, steps)) {
+      l.el.style.display = 'none'; continue;
+    }
+    l.el.style.display = 'block';
+    l.el.style.left = ((_v.x * 0.5 + 0.5) * innerWidth) + 'px';
+    l.el.style.top = ((-_v.y * 0.5 + 0.5) * innerHeight) + 'px';
+  }
+}
+
+// ------------------------------------------------- compass + scale bar ------
+const NORTH = new THREE.Vector3(0, 0, -1);
+const _q = new THREE.Quaternion();
+let MPP = 1;
+
+function updateFurniture() {
+  _q.copy(camera.quaternion).invert();
+  _v.copy(NORTH).applyQuaternion(_q);
+  const deg = Math.atan2(_v.x, _v.y) * 180 / Math.PI;
+  $('needle').setAttribute('transform', `rotate(${deg} 50 50)`);
+  $('nLetter').setAttribute('transform', `rotate(${deg} 50 50)`);
+
+  const d = camera.position.distanceTo(controls.target);
+  const worldH = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * d;
+  MPP = worldH / innerHeight;
+  const target = 120 * MPP;
+  const pow = Math.pow(10, Math.floor(Math.log10(target)));
+  const nice = [1, 2, 5, 10].map(m => m * pow).reduce((a, b) =>
+    Math.abs(b - target) < Math.abs(a - target) ? b : a);
+  const px = nice / MPP;
+  if (isFinite(px) && px > 0) {
+    $('scaleBar').style.width = Math.min(200, Math.max(28, px)) + 'px';
+    $('scaleTxt').textContent = nice >= 1000
+      ? (nice / 1000).toLocaleString() + ' km' : nice.toLocaleString() + ' m';
+  }
+}
+
+// ================================================================ CLICK =====
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let down = null;
+
+function localToMap(p) {
+  const o = S.extras.origin || [0, 0];
+  const baked = S.extras.z_exaggeration || 1;
+  return { E: o[0] + p.x, N: o[1] - p.z, Z: p.y / baked };
+}
+
+const coordRows = m => {
+  const f = v => v.toLocaleString(undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `<tr><td class="k">Easting</td><td class="v">${f(m.E)} m</td></tr>` +
+         `<tr><td class="k">Northing</td><td class="v">${f(m.N)} m</td></tr>` +
+         `<tr><td class="k">Elevation</td><td class="v">${f(m.Z)} m</td></tr>`;
+};
+
+// a ramp with a tick showing where this value sits on the layer's scale
+function rampPos(lg, v) {
+  if (!lg || lg.type !== 'continuous' || typeof v !== 'number') return '';
+  const t = Math.max(0, Math.min(1, (v - lg.vmin) / (lg.vmax - lg.vmin)));
+  return `<div class="pos" style="background:linear-gradient(90deg,${lg.ramp.join(',')})">` +
+         `<span style="left:${(t * 100).toFixed(1)}%"></span></div>` +
+         `<div class="posv"><span>${fmtNum(lg.vmin)}</span><span>${fmtNum(lg.vmax)}</span></div>`;
+}
+
+function showReadout(html, note) {
+  const out = $('readout');
+  out.innerHTML = `<span class="x" onclick="this.parentNode.style.display='none'">×</span>`
+    + html + (note ? `<div class="note">${note}</div>` : '');
+  out.style.display = 'block';
+}
+
+async function inspectTerrain(hit) {
+  const m = localToMap(S.root.worldToLocal(hit.point.clone()));
+  let rows = coordRows(m), notes = [], tail = '';
+
+  if (hit.uv && S.skins.length) {
+    const want = S.readAll ? S.skins.map((s, i) => i)
+      : (S.current >= 0 ? [S.current] : []);
+    const results = [];
+    for (const i of want) {
+      const skin = S.skins[i];
+      const s = await getSampler(skin);
+      results.push([s ? (s.label || skin.name) : skin.name,
+                    s ? sampleAt(s, hit.uv.x, hit.uv.y) : null, s, i, skin]);
+    }
+    if (results.length) {
+      rows += `<tr class="rule"><td class="k" colspan="2"></td></tr>`;
+      for (const [label, r, s, i, skin] of results) {
+        const big = i === S.current ? ' class="big"' : '';
+        let txt;
+        if (!s) txt = `<span style="color:var(--dim)">unavailable</span>`;
+        else if (!r || r.nodata) txt = `<span style="color:var(--dim)">no data</span>`;
+        else {
+          const pre = r.exact ? '' : (r.saturated === 'low' ? '≤ ' :
+                      r.saturated === 'high' ? '≥ ' : '≈ ');
+          txt = pre + fmtV(r.v);
+          if (!r.exact) notes.push('ramp');
+          if (r.saturated) notes.push('sat');
+          if (i === S.current) tail = rampPos(skin.legend, r.v);
+        }
+        rows += `<tr${big}><td class="k">${label}</td><td class="v">${txt}</td></tr>`;
+      }
+    }
+  }
+
+  let note = '';
+  if (notes.includes('ramp'))
+    note = 'Values marked ≈ are read back off the colour ramp — quantised to ' +
+           '1/256 of the display range. Re-run drape2skin.py with --values for ' +
+           'exact numbers.';
+  if (notes.includes('sat'))
+    note += (note ? ' ' : '') + 'A ≤ or ≥ means the pixel is saturated at the ' +
+            'percentile clip, so its true value is beyond the displayed scale.';
+  showReadout(`<table>${rows}</table>` + tail, note);
+}
+
+function inspectVector(hit) {
+  const ud = hit.object.userData, rec = ud.rec;
+  const idx = ud.kind === 'point' ? hit.index : ud.part;
+  const m = localToMap(S.root.worldToLocal(hit.point.clone()));
+
+  // the colour this node/segment actually got, so the banner matches the model
+  let chip = rec.color;
+  if (ud.kind === 'point' && rec.colors && idx != null) {
+    const c = rec.colors.slice(idx * 3, idx * 3 + 3);
+    if (c.length === 3)
+      chip = `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
+  }
+
+  let rows = '', tail = '', haveAttr = false;
+  const av = (rec.values && idx != null && idx < rec.values.length)
+    ? rec.values[idx] : undefined;
+
+  if (rec.attribute && av !== undefined) {
+    haveAttr = true;
+    const lbl = (rec.legend && rec.legend.label) || rec.attribute;
+    const txt = (av === null) ? '—'
+      : (typeof av === 'number' ? fmtV(av) : String(av));
+    rows += `<tr class="big"><td class="k">${lbl}</td><td class="v">${txt}</td></tr>`;
+    tail = rampPos(rec.legend, av);
+  }
+  if (rec.fields && rec.props && idx != null && rec.props[idx]) {
+    for (const f of rec.fields) {
+      const v = rec.props[idx][f];
+      if (v === null || v === undefined) continue;
+      rows += `<tr><td class="k">${f}</td><td class="v">` +
+              `${typeof v === 'number' ? fmtV(v) : String(v)}</td></tr>`;
+    }
+  }
+  if (rows) rows += `<tr class="rule"><td class="k" colspan="2"></td></tr>`;
+  rows += coordRows(m);
+
+  const kind = ud.kind === 'point' ? `node ${idx}` : `segment ${idx}`;
+  showReadout(
+    `<div class="hd"><i style="background:${chip}"></i>${rec.name} · ${kind}</div>` +
+    `<table>${rows}</table>` + tail,
+    haveAttr ? '' : 'No attribute travelled with this layer — re-run ' +
+      'vec2overlay.py with -attribute FIELD, or --carry-fields all.');
+}
+
+renderer.domElement.addEventListener('pointerdown',
+  e => down = { x: e.clientX, y: e.clientY });
+
+renderer.domElement.addEventListener('pointerup', async e => {
+  if (!down || !S.root) return;
+  if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
+  ndc.x = (e.clientX / innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+
+  // vectors win ties: they sit above the ground and are what you aimed at
+  ray.params.Points.threshold = MPP * 6;
+  ray.params.Line2 = ray.params.Line2 || {};
+  ray.params.Line2.threshold = 0;
+  const vis = S.pickables.filter(o => o.userData.rec.visible);
+  const vhit = vis.length ? ray.intersectObjects(vis, false)[0] : null;
+  if (vhit) { inspectVector(vhit); return; }
+
+  const hit = ray.intersectObjects(S.meshes, true)[0];
+  if (!hit) { $('readout').style.display = 'none'; return; }
+  await inspectTerrain(hit);
+});
+
+function showMeta() {
+  const x = S.extras, rows = [];
+  if (x.crs) rows.push(x.crs);
+  if (x.grid_size) rows.push(`grid ${x.grid_size[0]} × ${x.grid_size[1]}` +
+    (x.cell_size ? ` @ ${x.cell_size[0]} m` : ''));
+  if (x.z_range) rows.push(`elev ${x.z_range[0].toFixed(1)} – ${x.z_range[1].toFixed(1)} m`);
+  let tris = 0;
+  S.meshes.forEach(m => { const i = m.geometry.getIndex(); if (i) tris += i.count / 3; });
+  rows.push(`${tris.toLocaleString()} triangles`);
+  $('meta').innerHTML = rows.join('<br>');
+}
+
+// ------------------------------------------------------------------ UI -----
+function buildSkinList() {
+  const sel = $('skin');
+  sel.innerHTML = '<option value="-1">— no skin (bare terrain) —</option>' +
+    S.skins.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+  sel.onchange = () => applySkin(+sel.value);
+}
+
+$('prev').onclick = () => S.skins.length &&
+  applySkin((S.current - 1 + S.skins.length) % S.skins.length);
+$('next').onclick = () => S.skins.length &&
+  applySkin((S.current + 1) % S.skins.length);
+$('noskin').onclick = () => applySkin(-1);
+
+$('exag').oninput = () => {
+  const v = +$('exag').value;
+  $('exagVal').textContent = v.toFixed(1) + '×';
+  if (S.root) S.root.scale.y = v;
+};
+$('az').oninput = $('el').oninput = setSun;
+
+const toggle = (id, fn, initial) => {
+  const b = $(id);
+  if (initial) b.classList.add('on');
+  b.onclick = () => { b.classList.toggle('on'); fn(b.classList.contains('on')); };
+};
+toggle('axes', on => { S.showAxes = on; updateAxes(); }, true);
+toggle('readAll', on => { S.readAll = on; });
+toggle('box', on => { if (S.boxGroup) S.boxGroup.visible = on; });
+toggle('wire', on => { if (S.material) S.material.wireframe = on; });
+toggle('flat', on => {
+  if (S.material) { S.material.flatShading = on; S.material.needsUpdate = true; } });
+toggle('cutout', on => {
+  if (!S.material) return;
+  S.material.alphaTest = on ? 0.5 : 0.0;
+  S.material.needsUpdate = true;
+});
+toggle('spin', on => { controls.autoRotate = on; controls.autoRotateSpeed = 0.6; });
+toggle('light', on => {
+  scene.background = new THREE.Color(on ? 0xf2f4f8 : 0x14171c);
+  hemi.groundColor.set(on ? 0xc8ccd4 : 0x2b2f38);
+  $('labels').classList.toggle('lightbg', on);
+  S.axesGroup && S.axesGroup.traverse(o => {
+    if (o.material) { o.material.color.set(on ? 0x23282f : 0xffffff);
+                      o.material.opacity = on ? 0.5 : 0.42; } });
+});
+toggle('ovLabels', on => { S.showFeatLabels = on; });
+toggle('ovXray', on => {
+  S.overlays.forEach(o => o.materials.forEach(m => {
+    m.depthTest = !on; m.needsUpdate = true; }));
+});
+$('home').onclick = () => {
+  if (!S.home) return;
+  camera.position.copy(S.home.pos); controls.target.copy(S.home.tgt); controls.update();
+};
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.key >= '1' && e.key <= '9') applySkin(+e.key - 1);
+  else if (e.key === '0') applySkin(-1);
+  else if (e.key === '[') $('prev').click();
+  else if (e.key === ']') $('next').click();
+  else if (e.key.toLowerCase() === 'a') $('axes').click();
+  else if (e.key.toLowerCase() === 'b') $('box').click();
+  else if (e.key.toLowerCase() === 'l') $('ovLabels').click();
+  else if (e.key.toLowerCase() === 'x') $('ovXray').click();
+  else if (e.key === 'Escape') $('readout').style.display = 'none';
+});
+
+// ---------------------------------------------------------------- boot -----
+function start() {
+  $('status').style.display = 'none';
+  $('drop').classList.remove('show');
+  $('ui').hidden = false;
+  buildSkinList();
+  showMeta();
+  applySkin(S.skins.length ? 0 : -1);
+}
+
+const skinsFrom = (man, urlFor) => (man.skins || []).map(s => {
+  const o = { name: s.name || s.id, legend: s.legend, coverage: s.coverage,
+              url: urlFor(s.file) };
+  if (s.values && s.values.file) {
+    const vu = urlFor(s.values.file);
+    if (vu) { o.valueUrl = vu; o.values = s.values; }
+  }
+  return o;
+}).filter(s => s.url);
+
+async function tryAutoLoad() {
+  const buf = await fetch('terrain.glb').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); });
+  await loadModel(buf);
+
+  const getJSON = async paths => {
+    for (const p of paths) {
+      try { const r = await fetch(p); if (r.ok) return [await r.json(), p]; } catch (e) {}
+    }
+    return [null, null];
+  };
+
+  const [sman, spath] = await getJSON(['skins/skins.json', 'skins.json']);
+  if (sman) {
+    const base = spath.includes('/') ? spath.slice(0, spath.lastIndexOf('/') + 1) : '';
+    S.skins = skinsFrom(sman, f => base + f);
+  }
+  const [oman] = await getJSON(['overlays/overlays.json', 'overlays.json']);
+  if (oman) buildOverlays(oman);
+
+  start();
+}
+
+tryAutoLoad().catch(() => {
+  $('status').style.display = 'none';
+  $('drop').classList.add('show');
+});
+
+// ------------------------------------------------- drag & drop / picker ----
+async function ingest(files) {
+  const list = [...files];
+  const model = list.find(f => /\.(glb|gltf)$/i.test(f.name));
+  const jsons = list.filter(f => /\.json$/i.test(f.name));
+  const imgs = list.filter(f => /\.(png|jpe?g|webp)$/i.test(f.name));
+  if (!model && !S.root) { alert('Include a .glb or .gltf terrain file.'); return; }
+
+  $('drop').classList.remove('show');
+  $('status').style.display = 'block';
+  $('status').textContent = 'parsing model…';
+
+  if (model) await loadModel(await model.arrayBuffer());
+
+  const byName = new Map(imgs.map(f => [f.name, URL.createObjectURL(f)]));
+  const urlFor = f => f && (byName.get(f) || byName.get(f.split('/').pop()));
+  let skins = [];
+  for (const j of jsons) {
+    let man; try { man = JSON.parse(await j.text()); } catch (e) { continue; }
+    if (man.skins) skins = skinsFrom(man, urlFor);
+    else if (man.layers) buildOverlays(man);
+  }
+  if (!skins.length && imgs.length) {
+    skins = imgs.filter(f => !/_val\.png$/i.test(f.name)).map(f => ({
+      name: f.name.replace(/\.[^.]+$/, '').replace(/_/g, ' '),
+      legend: null, coverage: null, url: byName.get(f.name) }));
+  }
+  if (skins.length) S.skins = skins;
+  start();
+}
+
+$('picker').onchange = e => ingest(e.target.files);
+['dragenter', 'dragover'].forEach(t => addEventListener(t, e => {
+  e.preventDefault(); $('drop').classList.add('show', 'drag'); }));
+addEventListener('dragleave', e => {
+  if (e.relatedTarget === null) $('drop').classList.remove('drag'); });
+addEventListener('drop', e => {
+  e.preventDefault(); $('drop').classList.remove('drag');
+  if (e.dataTransfer.files.length) ingest(e.dataTransfer.files);
+  else if (S.root) $('drop').classList.remove('show');
+});
+
+// ---------------------------------------------------------------- loop -----
+(function tick() {
+  requestAnimationFrame(tick);
+  controls.update();
+  renderer.render(scene, camera);
+  if (S.root) {
+    updateAxes();
+    place(S.axisLabels, true, true);
+    place(S.cornerLabels, S.boxGroup && S.boxGroup.visible, true);
+    place(S.featLabels, S.showFeatLabels, true);
+    updateFurniture();
+  }
+})();
+</script>
+</body>
+</html>
