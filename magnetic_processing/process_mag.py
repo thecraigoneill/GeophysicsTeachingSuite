@@ -185,6 +185,29 @@ def apply_base_correction(rover: pd.DataFrame, base: pd.DataFrame,
     return rover
 
 
+def add_progressive_distance(rover: pd.DataFrame) -> pd.DataFrame:
+    """Cumulative along-line distance, in metres, from the projected E/N.
+
+    Measured in MGA coordinates (not lat/lon) so it is a true ground distance,
+    and reset to zero at the start of every line. STEP_M is the point-to-point
+    spacing, which is useful for spotting GPS dropouts.
+    """
+    rover = rover.sort_values(["LINE", "DATETIME"]).reset_index(drop=True)
+    steps, dists = [], []
+
+    for _, ld in rover.groupby("LINE", sort=True):
+        de = np.diff(ld["EASTING"].to_numpy())
+        dn = np.diff(ld["NORTHING"].to_numpy())
+        step = np.concatenate([[0.0], np.hypot(de, dn)])
+        steps.append(pd.Series(step, index=ld.index))
+        # nancumsum so one bad GPS fix doesn't void the rest of the line
+        dists.append(pd.Series(np.nancumsum(step), index=ld.index))
+
+    rover["STEP_M"] = pd.concat(steps).sort_index()
+    rover["DIST_M"] = pd.concat(dists).sort_index()
+    return rover
+
+
 def to_mga56(df: pd.DataFrame) -> pd.DataFrame:
     from pyproj import Transformer
     tf = Transformer.from_crs(EPSG_GPS, EPSG_OUT, always_xy=True)
@@ -204,7 +227,10 @@ def _timefmt(ax):
 
 
 def plot_line(line_id, ld: pd.DataFrame, base: pd.DataFrame, outdir: Path):
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 8), sharex=True)
+    fig = plt.figure(figsize=(13, 11))
+    ax1 = fig.add_subplot(3, 1, 1)
+    ax2 = fig.add_subplot(3, 1, 2, sharex=ax1)
+    ax3 = fig.add_subplot(3, 1, 3)
 
     ax1.plot(ld["DATETIME"], ld["MAGFIELD"], "-", color="tab:blue",
              lw=1.4, ms=3, marker="o", label=f"Line {line_id} raw")
@@ -228,6 +254,17 @@ def plot_line(line_id, ld: pd.DataFrame, base: pd.DataFrame, outdir: Path):
     ax2.set_title(f"Line {line_id} — base-corrected")
     ax2.legend(loc="upper left")
     _timefmt(ax2)
+
+    # profile against along-line distance — the usual way to read a mag line
+    if "DIST_M" in ld:
+        ax3.plot(ld["DIST_M"], ld["mag_corrected"], "-", color="tab:red",
+                 lw=1.6, ms=3, marker="o", label="mag_corrected")
+        ax3.set_xlabel("Progressive distance along line (m)")
+        ax3.set_ylabel("mag_corrected (nT)")
+        ax3.set_title(f"Line {line_id} — corrected profile vs along-line distance "
+                      f"(length {ld['DIST_M'].max():.1f} m)")
+        ax3.legend(loc="upper left")
+        ax3.grid(True, alpha=0.3)
 
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -319,6 +356,8 @@ def write_gpkg(rover: pd.DataFrame, path: Path):
             "LINE": int(l),
             "ORIG_LINE": int(ld["ORIG_LINE"].iloc[0]) if "ORIG_LINE" in ld else int(l),
             "n_points": len(ld),
+            "length_m": float(ld["DIST_M"].max()) if "DIST_M" in ld else None,
+            "mean_spacing_m": float(ld["STEP_M"].iloc[1:].mean()) if len(ld) > 1 else None,
             "start_time": str(ld["DATETIME"].min()),
             "end_time": str(ld["DATETIME"].max()),
             "mag_corrected_mean": float(ld["mag_corrected"].mean(skipna=True)),
@@ -386,9 +425,10 @@ def main(argv=None):
     print("\nCorrecting...")
     rover = apply_base_correction(rover, base, a.max_gap_min)
     rover = to_mga56(rover)
+    rover = add_progressive_distance(rover)
 
     lead = ["LINE", "ORIG_LINE", "SEGMENT", "DATETIME", "STATION",
-            "EASTING", "NORTHING", "GPSLAT", "GPSLON",
+            "DIST_M", "STEP_M", "EASTING", "NORTHING", "GPSLAT", "GPSLON",
             "MAGFIELD", "BASE_INTERP", "mag_corrected", "BASE_GAP_MIN"]
     rover = rover[lead + [c for c in rover.columns if c not in lead]]
 
@@ -399,6 +439,8 @@ def main(argv=None):
         ld.to_csv(csvd / f"line_{l}.csv", index=False)
         plot_line(l, ld, base, png)
         print(f"  Line {str(l):>5}  n={len(ld):4d}  "
+              f"length {ld['DIST_M'].max():7.1f} m "
+              f"(spacing {ld['STEP_M'].iloc[1:].mean():5.1f} m)  "
               f"raw {ld['MAGFIELD'].min():9.1f}..{ld['MAGFIELD'].max():9.1f}  "
               f"corrected {ld['mag_corrected'].min():8.1f}..{ld['mag_corrected'].max():8.1f} nT")
 
