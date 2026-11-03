@@ -17,7 +17,7 @@ Note the output will overwrite things - make sure you create a new directory aft
 
 ```mkdir A0097786_A0042914
 
-mv A0097786_x_A0042914.* A0097786_A0042914```
+mv A0097786_x_A0042914.* A0097786_A0042914 ```
 
 The sac file that is made can be imported directly in FTANos_WebApp for FTAN digitisation. 
 
