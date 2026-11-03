@@ -37,7 +37,12 @@ The webpackage contains a self-contained GUI for this. It is found here:
 https://github.com/thecraigoneill/FTANos/tree/main/FTANos_WebApp_V3
 
 The GUI can be launched with:
+
+```python
+
 python FTAN_Viewer.py
+
+```
 
 The readme has step by step instructions for this here: https://github.com/thecraigoneill/FTANos/blob/main/FTANos_WebApp_V3/README.txt
 
