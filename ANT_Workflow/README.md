@@ -8,7 +8,11 @@ allseis_xcorr4.py runs the cross-correlation on the timeseries files from each n
 
 For each run  you would type in the terminal:
 
-```python allseis_xcorr4.py A0097786 A0042914 --dist 5.2 --bandpass 0.1 20 --whiten --one-bit --max-lag 0.5 -j 8 --from-date 260602 --to-date 260624```
+```bash
+
+python allseis_xcorr4.py A0097786 A0042914 --dist 5.2 --bandpass 0.1 20 --whiten --one-bit --max-lag 0.5 -j 8 --from-date 260602 --to-date 260624
+
+```
 
 Here our deployment went from 02/06/2026 to 24/06/2026. Choose the date range for your data. The distance is calculated from station positions using a haversine formula (see python script in miscellaneous). 
 Change your node IDs (eg. A0097786) as needed.
