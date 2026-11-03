@@ -46,6 +46,64 @@ python FTAN_Viewer.py
 
 The readme has step by step instructions for this here: https://github.com/thecraigoneill/FTANos/blob/main/FTANos_WebApp_V3/README.txt
 
+## Steps:
+
+1. ### Run:
+
+   ```python
+   python FTAN_Viewer.py
+   ```
+
+2. ### Read SAC (or ASCII / Tromino .dat).
+   dt and distance are auto-filled
+   from the SAC header where available (DIST); override in the sidebar
+   if needed. example_trace.sac from the FTANos paper is included.
+   For a Tromino record, a "Shot" dropdown appears: choose "Stack all"
+   (the default — averages every 1 s post-trigger window) or step through
+   individual shots. Changing the shot resets the map/picks; recompute.
+
+3. ### Set the FTAN band (Tmin/Tmax), velocity window, filter count and alpha,
+   Then Compute Map. Toggle "Wavelet (Morlet)" for a CWT map
+   instead of the traditional Gaussian multiple-filter map.
+
+4. ### Digitize: select "Disp. Curve" and click along the dispersion ridge
+   ("snap to ridge" pulls each click to the local amplitude maximum in
+   that period column). Upper/Lower Bound picks can also be recorded.
+   No origin/axis-calibration clicks are needed (unlike the matplotlib
+   version) - clicks map directly to (T, U). Save/load .disp files
+   compatible with FTANos.
+
+5. ### Edit the structural model table and press Forward Model
+   To check the table model against the map (fundamental-mode Rayleigh U and C from
+   disba fill the mode table).
+
+6. ### Invert (NM):
+   Staggered Nelder-Mead simplex, as in Amoeba_crawl -
+   N starting models scaled between 0.1-0.8 of the table model. The
+   best model's dispersion curve is overlaid on the map and a synthetic
+   seismogram is reconstructed and overlaid on the observed waveform.
+   By default the editable table is NOT overwritten (your initial model
+   is preserved); tick "write best solution to model table" to have the
+   best model written back. Use the Initial / Best-fit toggle above the
+   model table to inspect either model; the best-fit view is read-only.
+
+7. ### MCMC:
+   Starts from the NM result if one exists. Acceptance is a proper
+   Metropolis-Hastings test (accept downhill; accept uphill with
+   probability exp(-dL1/T)). "Adaptive" auto-tunes the temperature T to a
+   20-40% acceptance rate (recommended). Defaults that work well:
+   step size 0.01, step floor 0.08, alpha 0.51, beta 1.01. The profile
+   panel then shows the posterior median and 68/95% percentile fans.
+
+   Velocity bounds (min/max Vs) are enforced throughout the inversion:
+   Vs is hard-clipped to the range and models pushed against a bound are
+   penalised, so the geologic limits are respected.
+
+8. ### Export:
+    .disp curve, model CSV (disba format + NM std), full MCMC
+   ensemble CSV, FTAN map SVG.
+
+
 
 
 
